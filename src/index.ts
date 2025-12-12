@@ -13,13 +13,41 @@ dotenv.config();
 
 const app = express();
 
-app.use(express.urlencoded({ extended: true }));
+const allowedOrigins = [
+  "https://jaleifoundation.com",
+  "https://www.jaleifoundation.com",
+];
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    // allow requests with no origin (curl, mobile apps, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("CORS policy: Origin not allowed"));
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+};
+
+/**
+ * Preserve raw body for signature verification (webhooks/verify endpoint).
+ * This middleware must be used with express.json verify option so req.rawBody is available.
+ */
 app.use(
-  cors({
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  express.json({
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf;
+    },
   })
 );
-app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Apply CORS globally (must be before route handlers)
+app.use(cors(corsOptions));
+
+// If you still want an explicit OPTIONS handler, use a RegExp to avoid path-to-regexp parsing issues
+app.options(/.*/, cors(corsOptions));
 
 app.post("/student", async (req: Request, res: Response) => {
   const {
